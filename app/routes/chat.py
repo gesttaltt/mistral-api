@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
 from ..models import ChatCompletionRequest, ChatCompletionResponse
 from ..utils import log_api_usage, TimingContext
 from ..database import db_manager, ConversationRecord
+from ..middleware import validate_chat_request
 
 router = APIRouter(prefix="/v1/chat", tags=["chat"])
 
@@ -59,19 +60,29 @@ async def create_chat_completion(
             if not server_state.model_server or not server_state.model_server.is_running:
                 raise HTTPException(status_code=503, detail="Model server not available")
 
+            # Validate and sanitize request
+            validation = await validate_chat_request(request.dict())
+            if not validation["valid"]:
+                error_details = "; ".join(validation["errors"])
+                raise HTTPException(status_code=400, detail=f"Request validation failed: {error_details}")
+
+            # Use sanitized data
+            sanitized_request = validation["sanitized_data"]
+            messages = sanitized_request["messages"]
+
             # Extract user message (last message should be from user)
-            if not request.messages or request.messages[-1].role != "user":
+            if not messages or messages[-1]["role"] != "user":
                 raise HTTPException(status_code=400, detail="Last message must be from user")
 
-            user_message = request.messages[-1].content
+            user_message = messages[-1]["content"]
 
             # Build context from conversation history
             conversation_context = ""
-            for msg in request.messages[:-1]:
-                if msg.role == "user":
-                    conversation_context += f"User: {msg.content}\n"
-                elif msg.role == "assistant":
-                    conversation_context += f"Assistant: {msg.content}\n"
+            for msg in messages[:-1]:
+                if msg["role"] == "user":
+                    conversation_context += f"User: {msg['content']}\n"
+                elif msg["role"] == "assistant":
+                    conversation_context += f"Assistant: {msg['content']}\n"
 
             # Prepare prompt
             if conversation_context:
@@ -79,11 +90,11 @@ async def create_chat_completion(
             else:
                 full_prompt = user_message
 
-            # Generate response
+            # Generate response using sanitized parameters
             result = server_state.model_server.send_completion_request(
                 prompt=full_prompt,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature
+                max_tokens=sanitized_request["max_tokens"],
+                temperature=sanitized_request["temperature"]
             )
 
             if "content" not in result:
@@ -103,7 +114,7 @@ async def create_chat_completion(
             response = ChatCompletionResponse(
                 id=completion_id,
                 created=int(time.time()),
-                model=request.model,
+                model=sanitized_request["model"],
                 session_id=session_id,
                 choices=[{
                     "index": 0,
@@ -123,8 +134,8 @@ async def create_chat_completion(
             # Log to database
             background_tasks.add_task(
                 log_conversation,
-                session_id, user_message, assistant_response, request.model,
-                request.temperature, request.max_tokens, timer.elapsed_ms, tokens_generated
+                session_id, user_message, assistant_response, sanitized_request["model"],
+                sanitized_request["temperature"], sanitized_request["max_tokens"], timer.elapsed_ms, tokens_generated
             )
 
             background_tasks.add_task(

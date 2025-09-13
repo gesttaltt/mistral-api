@@ -16,11 +16,14 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
 import json
 
 from .database import db_manager, ConversationRecord, APIUsageRecord
 from .model_server import MistralServerManager
+from .middleware import SecurityMiddleware
+from .security import security_manager, security_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -65,6 +68,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add security middleware
+app.add_middleware(SecurityMiddleware)
 
 # Add CORS middleware
 app.add_middleware(
