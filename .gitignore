@@ -201,3 +201,38 @@ test_data/
 # Local scripts
 local_scripts/
 dev_scripts/
+
+# Development and bypass configurations
+bypass_config.json
+dev_mode.json
+local_overrides.py
+*_bypass.py
+
+# Server instance files
+server_instances/
+temp_servers/
+*.pid.lock
+
+# Local model customizations
+model_configs/
+custom_prompts/
+persona_files/
+
+# Development logs
+dev_logs/
+debug_*.log
+*.debug
+
+# Local environment testing
+.env.test
+.env.dev
+test_responses/
+
+# User-specific IDE settings
+*.sublime-*
+*.code-workspace
+.history/
+
+# System-specific files
+Desktop.ini
+.fuse_hidden*
