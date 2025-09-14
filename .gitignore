@@ -236,3 +236,11 @@ test_responses/
 # System-specific files
 Desktop.ini
 .fuse_hidden*
+
+# Local reports and audits (private)
+local-reports/
+audit-reports/
+security-reports/
+compliance-reports/
+*.audit
+*.compliance
